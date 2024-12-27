@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa com Endereços Próximos</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h3 style="text-align: center;">Mapa de Endereços</h3>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        const enderecos = [
+            { numero: 174, nome: 'ANTONIO DOS SANTOS RIBEIRO - A', coords: [-21.17543, -50.44985], tipo: 'CR BIRIGUI' },
+            { numero: 356, nome: 'VITÓRIO MAZZINI', coords: [-21.20891, -50.40169], tipo: 'CR BIRIGUI' },
+            { numero: 456, nome: 'EÇA QUEIROZ', coords: [-21.22877, -50.42680], tipo: 'CR BIRIGUI' },
+            { numero: 137, nome: 'PROFESSOR JOSÉ RAAB', coords: [-21.22193, -50.47160], tipo: 'CR BIRIGUI' },
+            { numero: 155, nome: 'ALFREDO CHIANTELLI', coords: [-21.19796, -50.47926], tipo: 'CR BIRIGUI' },
+            { numero: 843, nome: 'DUQUE DE CAXIAS', coords: [-21.21304, -50.44079], tipo: 'CR BIRIGUI' },
+            { numero: 6, nome: 'SARGENTO GILBERTO BATISTA SOUZA', coords: [-21.21520, -50.40792], tipo: 'CR ARAÇATUBA' },
+            { numero: 1220, nome: 'FUNDAEDOR PAULINO GATTO', coords: [-21.19295, -50.43818], tipo: 'CR ARAÇATUBA' },
+            { numero: 390, nome: 'JOSÉ FELICIANO PEREIRA', coords: [-21.15003, -50.45713], tipo: 'CR ARAÇATUBA' },
+            { numero: 170, nome: 'YAMPEI KIKUCHI', coords: [-21.19898, -50.45263], tipo: 'CR ARAÇATUBA' },
+            { numero: 396, nome: 'EQUADOR', coords: [-21.23033, -50.45275], tipo: 'CR ARAÇATUBA' },
+            { numero: 251, nome: 'FLORENCIO DE ABREU', coords: [-21.22913, -50.42616], tipo: 'CR ARAÇATUBA' },
+            { numero: 174, nome: 'ANTONIO DOS SANTOS RIBEIRO - B', coords: [-21.17520, -50.44940], tipo: 'CR ARAÇATUBA' },
+            { numero: 424, nome: 'ÁGUA FUNDA', coords: [-21.20242, -50.47621], tipo: 'PENIT ASP ANDRADINA' },
+            { numero: 165, nome: 'ANTONIO AFONSO DE TOLEDO', coords: [-21.21259, -50.42677], tipo: 'PENIT ASP ANDRADINA' }
+        ];
+
+        const map = L.map('map').setView([-21.17516, -50.44937], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Raio da Terra em km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distância em km
+        }
+
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const userLocation = [position.coords.latitude, position.coords.longitude];
+                    map.setView(userLocation, 13);
+                    L.marker(userLocation).addTo(map)
+                        .bindPopup('Você está aqui!')
+                        .openPopup();
+
+                    const enderecoMap = {};
+
+                    enderecos.forEach(endereco => {
+                        const key = `${endereco.coords[0]},${endereco.coords[1]}`;
+                        
+                        if (!enderecoMap[key]) {
+                            enderecoMap[key] = 0;
+                        }
+
+                        // Deslocamento para evitar sobreposição
+                        const deslocamento = enderecoMap[key] * 0.0001; // Ajuste de deslocamento
+                        const coordsDeslocadas = [endereco.coords[0] + deslocamento, endereco.coords[1]];
+
+                        let iconColor;
+
+                        if (endereco.tipo === 'CR ARAÇATUBA') {
+                            iconColor = 'red';
+                        } else if (endereco.tipo === 'CR BIRIGUI') {
+                            iconColor = 'blue';
+                        } else if (endereco.tipo === 'PENIT ASP ANDRADINA') {
+                            iconColor = 'green';
+                        } else {
+                            iconColor = 'gray'; // Cor padrão
+                        }
+
+                        const icon = L.divIcon({
+                            className: 'custom-icon',
+                            html: `<div style="background-color: ${iconColor}; color: white; text-align: center; border-radius: 50%; width: 25px; height: 25px; line-height: 25px;">${endereco.numero}</div>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30],
+                            popupAnchor: [0, -30]
+                        });
+
+                        L.marker(coordsDeslocadas, { icon }).addTo(map)
+                            .bindPopup(`${endereco.nome} - Número: ${endereco.numero}<br>Distância: ${calcularDistancia(userLocation[0], userLocation[1], endereco.coords[0], endereco.coords[1]).toFixed(2)} km`);
+
+                        enderecoMap[key]++; // Incrementa o contador para marcadores no mesmo local
+                    });
+                }, () => {
+                    handleLocationError(true);
+                });
+            } else {
+                handleLocationError(false);
+            }
+        }
+
+        function handleLocationError(browserHasGeolocation) {
+            alert(browserHasGeolocation ?
+                  'Erro: O serviço de geolocalização falhou.' :
+                  'Erro: Seu navegador não suporta geolocalização.');
+        }
+
+        // Chama a função para obter a localização ao carregar o mapa
+        getUserLocation();
+    </script>
+</body>
+</html>
